@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Self-hosted fonts (via @fontsource) instead of next/font/google — the
+   build previously fetched Inter and Fraunces from fonts.googleapis.com at
+   build time, which fails hard on any network that blocks that domain
+   (corporate firewalls, some antivirus TLS inspection, offline/CI
+   environments). @fontsource ships the actual font files as npm packages,
+   so they install with the rest of node_modules and the build never needs
+   internet access for fonts again. Only the weights actually used in the
+   app are imported (see the font-medium/font-semibold/font-bold usage
+   across src/) to keep the bundle lean. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/fraunces/500.css';
+@import '@fontsource/fraunces/600.css';
+@import '@fontsource/fraunces/700.css';
+
+:root {
+  /* Font family tokens — consumed by tailwind.config.ts (fontFamily.body /
+     fontFamily.heading), which appends the system-font fallback stack
+     after these. Previously set by next/font's generated `.variable`
+     class names; now just the literal family names the imports above
+     register. */
+  --font-body: 'Inter';
+  --font-heading: 'Fraunces';
+
+  /* Centralized brand tokens — derived from the official ClicMénage logo.
+     Tailwind utility classes (bg-primary-*, bg-accent-*, bg-orange-*, ...)
+     are the primary way components consume these; the CSS variables below
+     exist so the same values are reachable outside Tailwind (inline
+     styles, third-party embeds) without ever hardcoding a hex value. */
+  --brand-blue: #163f5d;
+  --brand-green: #2e9a5c;
+  --brand-orange: #db6f22;
+  --brand-dark: #0a1d2e;
+
+  --text-primary: #1b2430;
+  --text-secondary: #5c6773;
+
+  --background: #ffffff;
+  --background-soft: #f7f8fa;
+  --border: #e4e8ed;
+
+  --success: #237c49;
+  --error: #c0362c;
+
+  --radius-md: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-sand-300;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-sand-50 text-ink font-body antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    /* No tracking-tight here: that convention comes from geometric sans
+       headings. Fraunces (a warm serif) reads better at its natural
+       spacing — tightening it fights the letterforms. */
+    @apply font-heading font-semibold text-ink;
+  }
+
+  /* Visible, accessible focus states everywhere — never suppressed. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid theme('colors.accent.500');
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: theme('colors.accent.200');
+    color: theme('colors.primary.900');
+  }
+
+  /* Respect the user's OS-level motion preference: near-instant transitions
+     instead of fully removing them, so state still visibly changes. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-content px-5 sm:px-6 lg:px-8;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  /* accent-600 (not accent-500) is the button fill: white text on accent-500
+     measures 3.56:1, below the 4.5:1 AA minimum for normal-size text.
+     accent-600 measures 5.18:1 — same green family, just the shade that
+     actually passes contrast with white button labels.
+     The hover halo is a small, deliberate echo of the logo's "click" mark —
+     a soft ring expanding from the button, like a cursor click ripple. */
+  .btn-primary {
+    @apply btn bg-accent-600 text-white shadow-soft transition-[background-color,box-shadow] duration-200 hover:bg-accent-700 hover:shadow-[0_0_0_6px_rgba(35,124,73,0.18)] active:bg-accent-800;
+  }
+
+  .btn-secondary {
+    @apply btn bg-white text-primary-800 ring-1 ring-inset ring-primary-200 hover:bg-primary-50;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-primary-800 hover:bg-primary-50;
+  }
+
+  .card {
+    @apply rounded-lg border border-sand-200 bg-white shadow-soft;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-sand-300 bg-white px-4 py-3 text-base text-ink placeholder:text-ink-muted focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+
+  .field-error {
+    @apply mt-1.5 text-sm text-error;
+  }
+
+  /* A colored pill instead of plain uppercase text — it repeats at the top
+     of every section, so this alone puts real, deliberate brand-green
+     presence throughout the page instead of one faint line of text. */
+  .eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full bg-accent-50 px-3.5 py-1.5 text-sm font-semibold uppercase tracking-wide text-accent-700;
+  }
+}
