@@ -35,18 +35,58 @@ export const bookingCustomerSchema = z.object({
   instructions: z.string().trim().max(2000).optional(),
 });
 
-export const bookingSelectionSchema = z.object({
-  postalCode: canadianPostalCode,
-  areaSlug: z.string().nullable(),
-  service: z.enum(['regular', 'deep', 'move']),
-  bedrooms: z.number().int().min(0).max(10),
-  bathrooms: z.number().int().min(0).max(10),
-  sqft: z.number().int().min(0).max(20000).optional(),
-  frequency: z.enum(['once', 'weekly', 'biweekly', 'every4weeks']),
-  extraIds: z.array(z.string()),
-  date: z.string().min(1, 'required'),
-  timeWindowId: z.string().min(1, 'required'),
+const selectedExtraSchema = z.object({
+  id: z.string().min(1),
+  quantity: z.number().int().min(1).max(50),
 });
+
+export const bookingSelectionSchema = z
+  .object({
+    postalCode: canadianPostalCode,
+    areaSlug: z.string().nullable(),
+    service: z.enum(['regular', 'deep', 'move']),
+    housingType: z.enum(['condo_apartment', 'house', 'townhouse', 'duplex_triplex']),
+    /** 0 = studio, 1-5 = exact count, 6 = "6+". */
+    bedrooms: z.number().int().min(0).max(6),
+    fullBathrooms: z.number().int().min(1).max(8),
+    halfBathrooms: z.number().int().min(0).max(5),
+    sqftBucket: z.enum([
+      'under750',
+      '750_999',
+      '1000_1499',
+      '1500_1999',
+      '2000_2499',
+      '2500_2999',
+      '3000plus',
+      'unknown',
+    ]),
+    /** Only meaningful for house/townhouse — see superRefine below. */
+    floors: z.number().int().min(1).max(4).optional(),
+    lastCleaning: z.enum(['under1month', '1to3months', '3to6months', 'over6months', 'over1year', 'unknown']),
+    petHair: z.enum(['none', 'some', 'heavy']),
+    /** Move-In/Out only — see superRefine below. */
+    furnishingState: z.enum(['empty', 'partly_furnished', 'furnished']).optional(),
+    frequency: z.enum(['once', 'weekly', 'biweekly', 'every4weeks']),
+    extras: z.array(selectedExtraSchema),
+    date: z.string().min(1, 'required'),
+    timeWindowId: z.string().min(1, 'required'),
+  })
+  .superRefine((selection, ctx) => {
+    if (selection.service === 'move' && !selection.furnishingState) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['furnishingState'],
+        message: 'required',
+      });
+    }
+    if ((selection.housingType === 'house' || selection.housingType === 'townhouse') && !selection.floors) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['floors'],
+        message: 'required',
+      });
+    }
+  });
 
 export const createBookingSchema = z.object({
   selection: bookingSelectionSchema,
