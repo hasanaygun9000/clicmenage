@@ -176,12 +176,51 @@ export interface Dictionary {
     step3: {
       title: string;
       subtitle: string;
-      bedrooms: string;
-      bathrooms: string;
+      housingTypeLabel: string;
+      housingTypeOptions: { condoApartment: string; house: string; townhouse: string; duplexTriplex: string };
+      bedroomsLabel: string;
       studio: string;
+      sixPlus: string;
+      fullBathroomsLabel: string;
+      fullBathroomsHint: string;
+      halfBathroomsLabel: string;
+      halfBathroomsHint: string;
       sqftLabel: string;
-      sqftPlaceholder: string;
-      sqftHelp: string;
+      sqftHint: string;
+      sqftOptions: {
+        under750: string;
+        from750to999: string;
+        from1000to1499: string;
+        from1500to1999: string;
+        from2000to2499: string;
+        from2500to2999: string;
+        over3000: string;
+        unknown: string;
+      };
+      floorsLabel: string;
+      floorsHint: string;
+      floorsOptions: { one: string; two: string; threePlus: string };
+      lastCleaningLabel: string;
+      lastCleaningHint: string;
+      lastCleaningOptions: {
+        under1month: string;
+        oneToThreeMonths: string;
+        threeToSixMonths: string;
+        over6months: string;
+        over1year: string;
+        unknown: string;
+      };
+      petHairLabel: string;
+      petHairOptions: { none: string; some: string; heavy: string };
+      furnishingStateLabel: string;
+      furnishingStateOptions: { empty: string; partlyFurnished: string; furnished: string };
+      deepRecommendedTitle: string;
+      deepRecommendedMessage: string;
+      deepRequiredTitle: string;
+      deepRequiredMessage: string;
+      switchToDeepButton: string;
+      keepRegularButton: string;
+      manualReviewNotice: string;
     };
     step4: {
       title: string;
@@ -192,6 +231,10 @@ export interface Dictionary {
       title: string;
       subtitle: string;
       noneSelected: string;
+      quantityLabel: string;
+      perWindowUnit: string;
+      perLoadUnit: string;
+      perBedUnit: string;
     };
     step6: {
       title: string;
