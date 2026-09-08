@@ -19,6 +19,11 @@ import type { Booking } from '@/lib/booking/types';
  * recomputed here from src/lib/pricing/engine.ts using the SAME server-side
  * pricing config the client used to render its live estimate. This route
  * is the only place a booking's price is trusted.
+ *
+ * V1.1: the client also never gets to decide whether a job needs manual
+ * review — `pricing.manualReviewRequired` is recomputed here from the same
+ * trusted inputs, and it is a hard gate: see the block below. A flagged
+ * job never gets a PaymentIntent and is never stored as `confirmed`.
  * ============================================================================
  */
 export async function POST(request: NextRequest) {
@@ -62,7 +67,7 @@ export async function POST(request: NextRequest) {
     extras: selection.extras,
   });
 
-  const booking: Booking = {
+  const bookingBase = {
     id: `bk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     confirmationNumber: generateConfirmationNumber(),
     createdAt: new Date().toISOString(),
@@ -74,6 +79,41 @@ export async function POST(request: NextRequest) {
       total: pricing.total,
       currency: pricing.currency,
     },
+  };
+
+  // ============================================================================
+  // V1.1 — MANUAL REVIEW GATE
+  // ============================================================================
+  // A home flagged for manual review (very large sq ft, or any of the "+"
+  // bucket answers in step 3 — 6+ bedrooms, 4+ full bathrooms, 3+ half
+  // bathrooms, 3+ floors) never reaches payment or a "confirmed" status
+  // here. This is enforced server-side, not just hidden in the UI: no
+  // PaymentIntent is created and no money moves. The booking is stored as
+  // a minimal `pending_review` record (existing in-memory store — no new
+  // persistence layer) so it isn't lost, and the API tells the client
+  // plainly that this is a verification request, not a confirmed booking.
+  // ============================================================================
+  if (pricing.manualReviewRequired) {
+    const reviewBooking: Booking = {
+      ...bookingBase,
+      status: 'pending_review',
+      paymentStatus: 'unpaid',
+    };
+    await createBookingRecord(reviewBooking);
+
+    return NextResponse.json(
+      {
+        reviewRequired: true,
+        confirmationNumber: reviewBooking.confirmationNumber,
+        status: reviewBooking.status,
+        manualReviewReasons: pricing.manualReviewReason,
+      },
+      { status: 202 }
+    );
+  }
+
+  const booking: Booking = {
+    ...bookingBase,
     status: 'confirmed',
     paymentStatus: 'unpaid',
   };
@@ -89,7 +129,7 @@ export async function POST(request: NextRequest) {
 
   await createBookingRecord(booking);
 
-  await Promise.all([
+  const [confirmationEmailResult] = await Promise.all([
     sendEmail({
       to: customer.email,
       template: 'booking_confirmation',
@@ -102,5 +142,14 @@ export async function POST(request: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json({ booking, payment: { provider: paymentIntent.provider } }, { status: 201 });
+  return NextResponse.json(
+    {
+      booking,
+      payment: { provider: paymentIntent.provider },
+      // Lets the client show an honest confirmation message — never claim a
+      // real email was sent while the email provider is still in mock mode.
+      email: { provider: confirmationEmailResult.provider },
+    },
+    { status: 201 }
+  );
 }

@@ -44,7 +44,8 @@ export interface BookingSelection {
   timeWindowId: string;
 }
 
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+/** 'pending_review' (V1.1): a manual-review job — stored so it isn't lost, but never paid or treated as confirmed until a human reviews it. */
+export type BookingStatus = 'pending' | 'pending_review' | 'confirmed' | 'cancelled' | 'completed';
 export type PaymentStatus = 'unpaid' | 'authorized' | 'paid' | 'refunded' | 'failed';
 
 /**

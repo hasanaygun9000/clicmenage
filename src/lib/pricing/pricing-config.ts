@@ -66,6 +66,23 @@
  * before: discount applies to the cleaning subtotal only, extras are
  * added after, the minimum booking amount is enforced before tax, and
  * GST/QST are computed on top, kept separate in the breakdown.
+ *
+ * ============================================================================
+ *  V1.1 — OPERATIONAL HOURS FOR EXTRAS (never priced twice)
+ * ============================================================================
+ * Each extra also carries its own `operationalPersonHours` (see
+ * `extrasPricing` below) — internal scheduling time only, kept completely
+ * separate from the extra's fixed price. engine.ts sums these into
+ * `extrasPersonHours` and keeps them out of `computeCleaningPrice()`
+ * entirely, so an extra's time is never double-charged through the
+ * cleaning-price formula above. `baseCleaningPersonHours` (home-size-driven,
+ * everything above) is the only figure that formula ever sees; the
+ * frequency-based `reportedOperationalHoursFactor` below is likewise applied
+ * to `baseCleaningPersonHours` only — an extra like the oven takes roughly
+ * the same active work whether the client is a one-time or a weekly client,
+ * so it is never discounted by frequency. See PricingBreakdown in
+ * engine.ts for the full baseCleaningPersonHours/extrasPersonHours/
+ * estimatedPersonHours breakdown — all internal, never client-visible.
  * ============================================================================
  */
 
@@ -104,6 +121,16 @@ export type ExtraUnit = 'flat' | 'perWindow' | 'perLoad' | 'perBed';
 export interface ExtraPricing {
   unit: ExtraUnit;
   price: number;
+  /**
+   * DEMO / TO BE CONFIRMED BEFORE LAUNCH — internal operational person-hours
+   * this extra adds to the job. Scales with quantity exactly like `price`
+   * (flat extras always count once; perWindow/perLoad/perBed extras scale
+   * with the quantity the client entered). NEVER shown to the client and
+   * NEVER fed back into computeCleaningPrice() — the extra's price stays a
+   * separate, fixed line item so a job is never double-charged for the same
+   * time. See PricingBreakdown.extrasPersonHours in engine.ts.
+   */
+  operationalPersonHours: number;
 }
 
 export const pricingConfig = {
@@ -238,18 +265,21 @@ export const pricingConfig = {
    * DEMO / TO BE CONFIRMED BEFORE LAUNCH — extras catalog pricing, keyed
    * by extras.ts `id`. Most extras are a flat add-on; a few scale with a
    * quantity the client enters in step 5 (number of windows, laundry
-   * loads, or beds).
+   * loads, or beds). `operationalPersonHours` is the internal scheduling
+   * time each extra adds — centralized here alongside price so both stay
+   * in sync — see the ExtraPricing interface comment above for the
+   * no-double-charging rule.
    */
   extrasPricing: {
-    'inside-oven': { unit: 'flat', price: 40 },
-    'inside-fridge': { unit: 'flat', price: 40 },
-    'inside-empty-cabinets': { unit: 'flat', price: 40 },
-    'interior-windows': { unit: 'perWindow', price: 10 },
-    'laundry-wash-fold': { unit: 'perLoad', price: 25 },
-    'change-bedsheets': { unit: 'perBed', price: 15 },
-    dishwasher: { unit: 'flat', price: 20 },
-    'second-kitchen': { unit: 'flat', price: 40 },
-    'balcony-patio': { unit: 'flat', price: 15 },
+    'inside-oven': { unit: 'flat', price: 40, operationalPersonHours: 0.75 },
+    'inside-fridge': { unit: 'flat', price: 40, operationalPersonHours: 0.5 },
+    'inside-empty-cabinets': { unit: 'flat', price: 40, operationalPersonHours: 0.75 },
+    'interior-windows': { unit: 'perWindow', price: 10, operationalPersonHours: 0.15 },
+    'laundry-wash-fold': { unit: 'perLoad', price: 25, operationalPersonHours: 0.25 },
+    'change-bedsheets': { unit: 'perBed', price: 15, operationalPersonHours: 0.15 },
+    dishwasher: { unit: 'flat', price: 20, operationalPersonHours: 0.2 },
+    'second-kitchen': { unit: 'flat', price: 40, operationalPersonHours: 0.75 },
+    'balcony-patio': { unit: 'flat', price: 15, operationalPersonHours: 0.25 },
   } as Record<string, ExtraPricing>,
 
   /**

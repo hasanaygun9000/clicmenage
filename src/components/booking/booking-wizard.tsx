@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { Locale } from '@/lib/i18n/config';
 import type { Dictionary } from '@/lib/i18n/dictionary-type';
 import { HOUSING_TYPES_WITH_FLOORS, type ServicePricingKey } from '@/lib/pricing/pricing-config';
-import { getDeepRecommendationLevel } from '@/lib/pricing/engine';
+import { calculatePricing, getDeepRecommendationLevel } from '@/lib/pricing/engine';
 import { isBookableDate } from '@/lib/config/booking-rules';
 import { trackEvent } from '@/lib/analytics/events';
 import { Container } from '@/components/ui/container';
@@ -143,6 +143,27 @@ export function BookingWizard({ locale, dict }: { locale: Locale; dict: Dictiona
   const isLastInteractiveStep = step === TOTAL_STEPS - 1; // step 8, "Confirm" leads to payment
   const isPaymentStep = step === TOTAL_STEPS;
 
+  // V1.1 — purely to pick the right label for the step 8 -> step 9 button
+  // ("Payer et confirmer" vs "Envoyer ma demande"). Never trusted for the
+  // actual price/gate — the server always recomputes and enforces this in
+  // /api/bookings.
+  const manualReviewRequired =
+    state.service && state.housingType && state.bedrooms !== null && state.fullBathrooms && state.sqftBucket && state.petHair
+      ? calculatePricing({
+          service: state.service,
+          housingType: state.housingType,
+          bedrooms: state.bedrooms,
+          fullBathrooms: state.fullBathrooms,
+          halfBathrooms: state.halfBathrooms,
+          sqftBucket: state.sqftBucket,
+          floors: state.floors ?? undefined,
+          petHair: state.petHair,
+          furnishingState: state.furnishingState ?? undefined,
+          frequency: state.frequency,
+          extras: state.extras,
+        }).manualReviewRequired
+      : false;
+
   return (
     <section className="py-10 sm:py-14">
       <Container>
@@ -181,7 +202,11 @@ export function BookingWizard({ locale, dict }: { locale: Locale; dict: Dictiona
                 <StepDots currentStep={step} totalSteps={TOTAL_STEPS} />
                 <div className="flex flex-col items-end gap-1.5">
                   <button type="button" onClick={goNext} disabled={!canContinue} className="btn-primary">
-                    {isLastInteractiveStep ? dict.booking.step9.payLabel : dict.booking.continueButton}
+                    {isLastInteractiveStep
+                      ? manualReviewRequired
+                        ? dict.booking.step9.sendReviewRequestButton
+                        : dict.booking.step9.payLabel
+                      : dict.booking.continueButton}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </button>
                   {!canContinue && <p className="text-xs text-ink-muted">{dict.booking.continueHint}</p>}

@@ -77,8 +77,8 @@ export const termsSections: PolicySection[] = [
     heading: { fr: 'Réservations et prix', en: 'Bookings and pricing' },
     paragraphs: [
       {
-        fr: "Les prix affichés lors de la réservation sont des estimations basées sur les renseignements fournis. Le prix final peut être ajusté si l'état réel du domicile diffère significativement de ce qui a été indiqué.",
-        en: "Prices shown during booking are estimates based on the information provided. The final price may be adjusted if the home's actual condition differs significantly from what was indicated.",
+        fr: "Les prix affichés lors de la réservation sont calculés selon les renseignements fournis. Si la situation sur place diffère de façon importante de ce qui a été indiqué, nous vous contacterons avant d'effectuer tout travail supplémentaire. Les logements nécessitant une vérification supplémentaire (par exemple en raison de leur grandeur) sont soumis à une confirmation avant qu'un paiement ne soit effectué.",
+        en: 'Prices shown during booking are calculated based on the information provided. If the situation on site differs significantly from what was indicated, we will contact you before doing any additional work. Homes that require additional verification (for example due to their size) are subject to confirmation before any payment is taken.',
       },
     ],
   },

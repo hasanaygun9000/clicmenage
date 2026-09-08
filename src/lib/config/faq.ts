@@ -47,8 +47,8 @@ export const faqItems: FaqItem[] = [
     featuredOnHome: true,
     question: { fr: 'Combien de temps dure un ménage?', en: 'How long does a cleaning take?' },
     answer: {
-      fr: 'La durée varie selon la taille du domicile, le type de ménage choisi et les extras ajoutés. Une estimation s’affiche en temps réel pendant votre réservation.',
-      en: 'Duration varies based on your home’s size, the type of cleaning selected, and any extras added. An estimate is shown live during your booking.',
+      fr: 'La durée varie selon la taille, la configuration et les besoins de votre logement. Nous prévoyons suffisamment de temps et une équipe adaptée selon les renseignements fournis lors de la réservation.',
+      en: 'Duration varies based on the size, layout, and needs of your home. We plan enough time and an appropriately sized team based on the information you provide during booking.',
     },
   },
   {

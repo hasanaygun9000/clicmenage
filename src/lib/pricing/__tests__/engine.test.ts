@@ -71,7 +71,7 @@ describe('calculatePricing — home size scenarios', () => {
   it('flags 3000+ sq ft for manual review instead of silently promising a final price', () => {
     const result = calculatePricing(baseInput({ sqftBucket: '3000plus' }));
     expect(result.manualReviewRequired).toBe(true);
-    expect(result.manualReviewReason).toBe('large_sqft');
+    expect(result.manualReviewReason).toEqual(['large_sqft']);
     // Still returns a usable (floor) estimate rather than throwing or zeroing out.
     expect(result.cleaningSubtotal).toBeGreaterThan(0);
   });
@@ -296,5 +296,144 @@ describe('calculatePricing — minimum booking amount and crew size', () => {
     );
     expect(small.recommendedCrewSize).toBe(1);
     expect(large.recommendedCrewSize).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * ============================================================================
+ *  V1.1 — extras operational hours, manual-review triggers
+ * ============================================================================
+ * The 20 required scenarios from the V1.1 spec. A few (Move never offering
+ * oven/fridge/cabinets as extras; GST/QST computed correctly) are already
+ * covered by the describe blocks above and are not duplicated here.
+ * ============================================================================
+ */
+describe('calculatePricing — V1.1 extras operational hours', () => {
+  it('1. Regular without extras: baseCleaningPersonHours, extrasPersonHours, and estimatedPersonHours all agree, no hours change', () => {
+    const result = calculatePricing(baseInput());
+    expect(result.extrasPersonHours).toBe(0);
+    expect(result.estimatedPersonHours).toBe(result.baseCleaningPersonHours);
+  });
+
+  it('2. Regular + inside-oven: extrasPersonHours increases by exactly 0.75h, base and price unaffected', () => {
+    const without = calculatePricing(baseInput());
+    const withOven = calculatePricing(baseInput({ extras: [{ id: 'inside-oven', quantity: 1 }] }));
+    expect(withOven.extrasPersonHours).toBeCloseTo(0.75, 5);
+    expect(withOven.baseCleaningPersonHours).toBe(without.baseCleaningPersonHours);
+    // No double-charging: the cleaning price itself never moves because of an extra's hours.
+    expect(withOven.cleaningSubtotal).toBe(without.cleaningSubtotal);
+  });
+
+  it('3. Regular + inside-fridge: extrasPersonHours increases by exactly 0.50h', () => {
+    const result = calculatePricing(baseInput({ extras: [{ id: 'inside-fridge', quantity: 1 }] }));
+    expect(result.extrasPersonHours).toBeCloseTo(0.5, 5);
+  });
+
+  it('4. 10 interior windows: extrasPersonHours increases by exactly 1.50h (0.15h × 10)', () => {
+    const result = calculatePricing(baseInput({ extras: [{ id: 'interior-windows', quantity: 10 }] }));
+    expect(result.extrasPersonHours).toBeCloseTo(1.5, 5);
+  });
+
+  it('5. 2 loads of laundry: extrasPersonHours increases by exactly 0.50h active (0.25h × 2)', () => {
+    const result = calculatePricing(baseInput({ extras: [{ id: 'laundry-wash-fold', quantity: 2 }] }));
+    expect(result.extrasPersonHours).toBeCloseTo(0.5, 5);
+  });
+
+  it('6. 3 beds (change-bedsheets ×3): extrasPersonHours increases by exactly 0.45h (0.15h × 3)', () => {
+    const result = calculatePricing(baseInput({ extras: [{ id: 'change-bedsheets', quantity: 3 }] }));
+    expect(result.extrasPersonHours).toBeCloseTo(0.45, 5);
+  });
+
+  it('7. Multiple extras sum correctly (oven 0.75 + fridge 0.50 + dishwasher 0.20 = 1.45h)', () => {
+    const result = calculatePricing(
+      baseInput({
+        extras: [
+          { id: 'inside-oven', quantity: 1 },
+          { id: 'inside-fridge', quantity: 1 },
+          { id: 'dishwasher', quantity: 1 },
+        ],
+      })
+    );
+    expect(result.extrasPersonHours).toBeCloseTo(1.45, 5);
+  });
+
+  it('8. Weekly frequency reduces only the base cleaning time in reportedOperationalHours, never the extras time', () => {
+    const withExtras = { extras: [{ id: 'inside-oven', quantity: 1 }] as const };
+    const once = calculatePricing(baseInput({ frequency: 'once', extras: [...withExtras.extras] }));
+    const weekly = calculatePricing(baseInput({ frequency: 'weekly', extras: [...withExtras.extras] }));
+
+    // Same job, same extras → identical extrasPersonHours and estimatedPersonHours regardless of frequency.
+    expect(weekly.extrasPersonHours).toBe(once.extrasPersonHours);
+    expect(weekly.estimatedPersonHours).toBe(once.estimatedPersonHours);
+
+    // The reduced reporting figure differs, and by exactly the base-hours reduction — extras pass through unreduced.
+    const factor = pricingConfig.reportedOperationalHoursFactor.weekly;
+    expect(weekly.reportedOperationalHours).toBeLessThan(once.reportedOperationalHours);
+    expect(weekly.reportedOperationalHours).toBeCloseTo(weekly.baseCleaningPersonHours * factor + weekly.extrasPersonHours, 5);
+    expect(once.reportedOperationalHours).toBeCloseTo(once.baseCleaningPersonHours * 1 + once.extrasPersonHours, 5);
+  });
+
+  it('9. Extras can push the recommended crew size from 1 to 2', () => {
+    const withoutExtras = calculatePricing(baseInput({ bedrooms: 2, fullBathrooms: 1, sqftBucket: '1000_1499' }));
+    const withExtras = calculatePricing(
+      baseInput({
+        bedrooms: 2,
+        fullBathrooms: 1,
+        sqftBucket: '1000_1499',
+        extras: [
+          { id: 'inside-oven', quantity: 1 },
+          { id: 'inside-fridge', quantity: 1 },
+          { id: 'inside-empty-cabinets', quantity: 1 },
+          { id: 'second-kitchen', quantity: 1 },
+        ],
+      })
+    );
+    expect(withoutExtras.recommendedCrewSize).toBe(1);
+    expect(withExtras.recommendedCrewSize).toBe(2);
+  });
+});
+
+describe('calculatePricing — V1.1 "+"-bucket manual review triggers', () => {
+  it('12. 6+ bedrooms triggers manual review with reason six_plus_bedrooms', () => {
+    const result = calculatePricing(baseInput({ bedrooms: 6 }));
+    expect(result.manualReviewRequired).toBe(true);
+    expect(result.manualReviewReason).toContain('six_plus_bedrooms');
+  });
+
+  it('13. 4+ full bathrooms triggers manual review with reason four_plus_full_bathrooms', () => {
+    const result = calculatePricing(baseInput({ fullBathrooms: 4 }));
+    expect(result.manualReviewRequired).toBe(true);
+    expect(result.manualReviewReason).toContain('four_plus_full_bathrooms');
+  });
+
+  it('14. 3+ half bathrooms triggers manual review with reason three_plus_half_bathrooms', () => {
+    const result = calculatePricing(baseInput({ halfBathrooms: 3 }));
+    expect(result.manualReviewRequired).toBe(true);
+    expect(result.manualReviewReason).toContain('three_plus_half_bathrooms');
+  });
+
+  it('15. 3+ floors (house/townhouse only) triggers manual review with reason three_plus_floors', () => {
+    const result = calculatePricing(baseInput({ housingType: 'house', floors: 3 }));
+    expect(result.manualReviewRequired).toBe(true);
+    expect(result.manualReviewReason).toContain('three_plus_floors');
+
+    // Never triggered for a condo/apartment, which never asks about floors.
+    const condo = calculatePricing(baseInput({ housingType: 'condo_apartment' }));
+    expect(condo.manualReviewReason).not.toContain('three_plus_floors');
+  });
+
+  it('multiple "+" triggers can apply at once, and each still uses its bucket minimum for the estimate', () => {
+    const result = calculatePricing(baseInput({ bedrooms: 6, fullBathrooms: 4, halfBathrooms: 3 }));
+    expect(result.manualReviewReason).toEqual(
+      expect.arrayContaining(['six_plus_bedrooms', 'four_plus_full_bathrooms', 'three_plus_half_bathrooms'])
+    );
+    // Still returns a usable (floor) estimate rather than throwing or zeroing out.
+    expect(result.cleaningSubtotal).toBeGreaterThan(0);
+  });
+
+  it('does not require manual review for a normal-sized home', () => {
+    const result = calculatePricing(baseInput());
+    expect(result.manualReviewRequired).toBe(false);
+    expect(result.manualReviewReason).toEqual([]);
   });
 });

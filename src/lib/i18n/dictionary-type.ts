@@ -285,11 +285,19 @@ export interface Dictionary {
       processingButton: string;
       successTitle: string;
       successMessage: string;
+      /** V1.1 — shown instead of successMessage while the email provider is still mock, so no real send is ever falsely claimed. */
+      demoSuccessMessage: string;
       confirmationNumberLabel: string;
       backHomeButton: string;
       errorTitle: string;
       errorMessage: string;
       tryAgain: string;
+      /** V1.1 — shown instead of the payment card when pricing.manualReviewRequired is true. */
+      reviewRequiredTitle: string;
+      reviewRequiredBody: string;
+      sendReviewRequestButton: string;
+      reviewReceivedTitle: string;
+      reviewReceivedMessage: string;
     };
     errors: {
       requiredField: string;

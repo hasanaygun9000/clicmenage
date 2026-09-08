@@ -108,8 +108,8 @@ export const services: ServiceDefinition[] = [
       {
         question: { fr: 'Combien de temps dure un ménage régulier?', en: 'How long does a regular cleaning take?' },
         answer: {
-          fr: "La durée dépend de la taille de votre domicile et du nombre de chambres et salles de bain. Une estimation de temps s'affiche pendant votre réservation.",
-          en: 'The duration depends on the size of your home and the number of bedrooms and bathrooms. A time estimate is shown during your booking.',
+          fr: 'La durée varie selon la taille, la configuration et les besoins de votre logement. Nous prévoyons suffisamment de temps et une équipe adaptée selon les renseignements fournis lors de la réservation.',
+          en: 'Duration varies based on the size, layout, and needs of your home. We plan enough time and an appropriately sized team based on the information you provide during booking.',
         },
       },
     ],
@@ -150,13 +150,11 @@ export const services: ServiceDefinition[] = [
         'Maisons n’ayant pas eu de ménage professionnel depuis longtemps',
         'Avant de recevoir de la visite ou un événement important',
         'Avant de commencer un plan de ménage récurrent',
-        'Après une rénovation légère (sans gros débris de construction)',
       ],
       en: [
         'Homes that haven’t had a professional cleaning in a while',
         'Before hosting guests or an important event',
         'Before starting a recurring cleaning plan',
-        'After light renovations (without heavy construction debris)',
       ],
     },
     benefits: {
@@ -232,28 +230,26 @@ export const services: ServiceDefinition[] = [
     },
     whoFor: {
       fr: [
-        'Locataires qui quittent un logement et veulent récupérer leur dépôt',
+        'Locataires qui veulent laisser leur logement propre avant de remettre les clés',
         'Propriétaires qui préparent un logement pour de nouveaux occupants',
         'Personnes qui emménagent et veulent commencer dans un espace impeccable',
-        'Hôtes Airbnb / location court terme qui préparent une unité entre deux locataires',
       ],
       en: [
-        'Tenants moving out who want their unit left in great condition',
+        'Tenants who want to leave their home clean before handing back the keys',
         'Landlords preparing a unit for new occupants',
         'People moving in who want to start in a spotless space',
-        'Airbnb / short-term rental hosts preparing a unit between guests',
       ],
     },
     benefits: {
       fr: [
         'Couvre les recoins habituellement négligés dans un logement meublé',
-        'Idéal pour respecter les exigences de fin de bail',
+        'Idéal pour laisser un logement propre à la fin d’un bail',
         'Planifiable autour de votre date de déménagement',
         'Service ponctuel, sans engagement récurrent',
       ],
       en: [
         'Covers the spots usually missed in a furnished home',
-        'Ideal for meeting end-of-lease requirements',
+        'Ideal for leaving a home clean at the end of a lease',
         'Can be scheduled around your moving date',
         'One-time service, no recurring commitment required',
       ],
@@ -264,13 +260,6 @@ export const services: ServiceDefinition[] = [
         answer: {
           fr: 'Ce service est optimisé pour un logement vide ou presque vide, ce qui nous permet d’accéder à toutes les surfaces. Un logement encore meublé peut prendre plus de temps.',
           en: 'This service is optimized for an empty or nearly empty home, which lets us access every surface. A still-furnished home may take longer.',
-        },
-      },
-      {
-        question: { fr: 'Puis-je réserver ce service pour une unité Airbnb?', en: 'Can I book this for an Airbnb unit?' },
-        answer: {
-          fr: 'Oui, plusieurs hôtes de location court terme utilisent ce service entre deux séjours ou pour une remise à neuf ponctuelle.',
-          en: 'Yes, several short-term rental hosts use this service between stays or for a one-time refresh.',
         },
       },
       {

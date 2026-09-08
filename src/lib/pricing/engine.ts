@@ -40,8 +40,17 @@ export interface PricingLineItem {
   amount: number;
 }
 
-/** Why a job was flagged for manual review before a final price is committed. */
-export type ManualReviewReason = 'large_sqft';
+/**
+ * Why a job was flagged for manual review before a final price is
+ * committed/paid. Several can apply at once (e.g. 6+ bedrooms AND 4+ full
+ * bathrooms), so PricingBreakdown.manualReviewReason is an array.
+ */
+export type ManualReviewReason =
+  | 'large_sqft'
+  | 'six_plus_bedrooms'
+  | 'four_plus_full_bathrooms'
+  | 'three_plus_half_bathrooms'
+  | 'three_plus_floors';
 
 export interface PricingBreakdown {
   currency: string;
@@ -58,15 +67,20 @@ export interface PricingBreakdown {
   qstAmount: number;
   taxAmount: number;
   total: number;
-  /** Internal scheduling/pricing input — never shown to the client as a promised duration. */
+  /** Internal — home-size-driven hours only (bedrooms/bathrooms/sqft/floors/pet hair/furnishing). The only figure computeCleaningPrice() ever sees. Never shown to the client. */
+  baseCleaningPersonHours: number;
+  /** Internal — sum of every selected extra's operationalPersonHours. Never fed back into the cleaning price (no double-charging) and never shown to the client. */
+  extrasPersonHours: number;
+  /** Internal total operational hours (baseCleaningPersonHours + extrasPersonHours) — drives recommendedCrewSize. Never shown to the client as a promised duration. */
   estimatedPersonHours: number;
-  /** Reduced hour figure for future internal reporting only — see reportedOperationalHoursFactor. */
+  /** Reduced hour figure for future internal reporting only — the frequency factor applies to baseCleaningPersonHours only, extrasPersonHours is added on top unreduced. See reportedOperationalHoursFactor. */
   reportedOperationalHours: number;
-  /** Internal scheduling suggestion — how many cleaners a job of this size likely needs. */
+  /** Internal scheduling suggestion — how many cleaners a job of this size (including extras) likely needs. */
   recommendedCrewSize: number;
-  /** True when the job is large enough (3000+ sq ft) that it needs a quick human look before a final price is committed. */
+  /** True when the job needs a quick human look before a final price/payment is committed (see ManualReviewReason). */
   manualReviewRequired: boolean;
-  manualReviewReason: ManualReviewReason | null;
+  /** Every reason manual review was triggered — empty when manualReviewRequired is false. */
+  manualReviewReason: ManualReviewReason[];
 }
 
 function round2(value: number): number {
@@ -86,17 +100,29 @@ function isSqftBucketWithAdjustment(bucket: SqftBucket): bucket is SqftBucketWit
 }
 
 interface HoursEstimate {
+  /** Base, home-size-driven hours only — never includes extras. */
   hours: number;
   manualReviewRequired: boolean;
-  manualReviewReason: ManualReviewReason | null;
+  manualReviewReason: ManualReviewReason[];
 }
 
 /**
- * Estimates person-hours for a job. See the long comment at the top of
- * pricing-config.ts for the full explanation of each step. This number is
- * an internal pricing/scheduling input only — it is never shown to the
- * client as a promised duration, and a cleaner should never feel forced
- * to leave a job unfinished because this estimate was exceeded.
+ * Estimates BASE (home-size-driven) person-hours for a job — bedrooms,
+ * bathrooms, square footage, floors, pet hair, and (Move only) furnishing
+ * state. Extras are handled separately by computeExtras() and are NEVER
+ * folded into this figure or into computeCleaningPrice() — see the V1.1
+ * comment at the top of pricing-config.ts. This number is an internal
+ * pricing/scheduling input only — it is never shown to the client as a
+ * promised duration, and a cleaner should never feel forced to leave a job
+ * unfinished because this estimate was exceeded.
+ *
+ * Several of step 3's "+" options (6 bedrooms, 4 full bathrooms, 3 half
+ * bathrooms, 3 floors) store the bucket's minimum value — e.g. "6+"
+ * bedrooms is stored as exactly 6 — so the hour math above already uses
+ * that minimum as a floor estimate. Because a "+" bucket can badly
+ * understate a much larger home, selecting any of them also flags manual
+ * review, exactly like the existing 3000+ sq ft case, so a human confirms
+ * the real price before it's treated as final.
  */
 function estimatePersonHours(input: PricingInput): HoursEstimate {
   const service = input.service;
@@ -106,6 +132,7 @@ function estimatePersonHours(input: PricingInput): HoursEstimate {
   const bedrooms = Math.max(0, Math.round(input.bedrooms));
   const fullBathrooms = Math.max(1, Math.round(input.fullBathrooms));
   const halfBathrooms = Math.max(0, Math.round(input.halfBathrooms));
+  const hasFloorsQuestion = HOUSING_TYPES_WITH_FLOORS.includes(input.housingType);
 
   let hours =
     bedrooms === 0
@@ -114,25 +141,28 @@ function estimatePersonHours(input: PricingInput): HoursEstimate {
   hours += Math.max(0, fullBathrooms - 1) * increments.perExtraFullBathroom;
   hours += halfBathrooms * increments.perHalfBathroom;
 
-  let manualReviewRequired = false;
-  let manualReviewReason: ManualReviewReason | null = null;
+  const manualReviewReason: ManualReviewReason[] = [];
   const sqftAdjustments = pricingConfig.sqftHourAdjustments[service];
   if (input.sqftBucket === '3000plus') {
     // No blind promise for very large homes — estimate with the largest
     // known bracket as a floor, but flag for a human look before the
     // price is treated as final.
     hours += sqftAdjustments['2500_2999'];
-    manualReviewRequired = true;
-    manualReviewReason = 'large_sqft';
+    manualReviewReason.push('large_sqft');
   } else if (isSqftBucketWithAdjustment(input.sqftBucket)) {
     hours += sqftAdjustments[input.sqftBucket];
   }
   // 'under750', '750_999', and 'unknown' add nothing.
 
-  if (HOUSING_TYPES_WITH_FLOORS.includes(input.housingType) && input.floors && input.floors > 1) {
+  if (bedrooms === 6) manualReviewReason.push('six_plus_bedrooms');
+  if (fullBathrooms === 4) manualReviewReason.push('four_plus_full_bathrooms');
+  if (halfBathrooms === 3) manualReviewReason.push('three_plus_half_bathrooms');
+
+  if (hasFloorsQuestion && input.floors && input.floors > 1) {
     const extraFloors = input.floors - 1;
     hours += extraFloors * pricingConfig.floorsHourIncrement[service];
   }
+  if (hasFloorsQuestion && input.floors === 3) manualReviewReason.push('three_plus_floors');
 
   hours += pricingConfig.petHairHourAdjustments[service][input.petHair];
 
@@ -140,7 +170,7 @@ function estimatePersonHours(input: PricingInput): HoursEstimate {
     hours *= pricingConfig.moveFurnishingMultiplier[input.furnishingState];
   }
 
-  return { hours: round2(hours), manualReviewRequired, manualReviewReason };
+  return { hours: round2(hours), manualReviewRequired: manualReviewReason.length > 0, manualReviewReason };
 }
 
 /**
@@ -162,8 +192,17 @@ function recommendCrewSize(hours: number): number {
   return Math.max(1, Math.ceil(hours / 4.5));
 }
 
-function computeExtras(extras: SelectedExtra[]): { subtotal: number; lineItems: PricingLineItem[] } {
+/**
+ * Prices AND times the selected extras. Hours scale with quantity exactly
+ * like price (a flat extra always counts once; perWindow/perLoad/perBed
+ * extras scale with the quantity entered in step 5). The returned `hours`
+ * is kept completely separate from `subtotal` downstream — see
+ * calculatePricing(), which only ever feeds base hours into
+ * computeCleaningPrice() so an extra's time is never double-charged.
+ */
+function computeExtras(extras: SelectedExtra[]): { subtotal: number; lineItems: PricingLineItem[]; hours: number } {
   let subtotal = 0;
+  let hours = 0;
   const lineItems: PricingLineItem[] = [];
   for (const extra of extras) {
     const pricing = pricingConfig.extrasPricing[extra.id];
@@ -171,9 +210,10 @@ function computeExtras(extras: SelectedExtra[]): { subtotal: number; lineItems: 
     const quantity = pricing.unit === 'flat' ? 1 : Math.max(1, Math.round(extra.quantity || 1));
     const amount = round2(pricing.price * quantity);
     subtotal += amount;
+    hours += pricing.operationalPersonHours * quantity;
     lineItems.push({ id: extra.id, label: extra.id, amount });
   }
-  return { subtotal: round2(subtotal), lineItems };
+  return { subtotal: round2(subtotal), lineItems, hours: round2(hours) };
 }
 
 /**
@@ -184,10 +224,14 @@ function computeExtras(extras: SelectedExtra[]): { subtotal: number; lineItems: 
  * src/app/api/bookings/route.ts about never trusting a client-sent total.
  */
 export function calculatePricing(input: PricingInput): PricingBreakdown {
-  const { hours: estimatedPersonHours, manualReviewRequired, manualReviewReason } = estimatePersonHours(input);
+  const { hours: baseCleaningPersonHours, manualReviewRequired, manualReviewReason } = estimatePersonHours(input);
 
-  const cleaningSubtotal = computeCleaningPrice(input.service, estimatedPersonHours);
-  const { subtotal: extrasSubtotal, lineItems: extraLineItems } = computeExtras(input.extras);
+  // SECURITY/CORRECTNESS: computeCleaningPrice() only ever sees
+  // baseCleaningPersonHours — extras are priced and timed separately below
+  // and never feed back into this call, so a job is never double-charged
+  // for the same time (see the V1.1 comment atop pricing-config.ts).
+  const cleaningSubtotal = computeCleaningPrice(input.service, baseCleaningPersonHours);
+  const { subtotal: extrasSubtotal, lineItems: extraLineItems, hours: extrasPersonHours } = computeExtras(input.extras);
 
   const frequencyDiscountRate = pricingConfig.frequencyDiscounts[input.frequency] ?? 0;
   const frequencyDiscountAmount = round2(cleaningSubtotal * frequencyDiscountRate);
@@ -210,8 +254,17 @@ export function calculatePricing(input: PricingInput): PricingBreakdown {
     ...extraLineItems,
   ];
 
+  // Total operational hours, including extras — this is what scheduling
+  // (recommendedCrewSize) cares about, regardless of frequency.
+  const estimatedPersonHours = round2(baseCleaningPersonHours + extrasPersonHours);
+
+  // Reduced figure for future internal reporting only: the frequency
+  // factor reduces base cleaning time only (a recurring visit to an
+  // already-maintained home is genuinely lighter) — extras are added back
+  // in unreduced, since e.g. an oven takes about the same active work
+  // whether the client is weekly or one-time.
   const reportedOperationalHours = round2(
-    estimatedPersonHours * (pricingConfig.reportedOperationalHoursFactor[input.frequency] ?? 1)
+    baseCleaningPersonHours * (pricingConfig.reportedOperationalHoursFactor[input.frequency] ?? 1) + extrasPersonHours
   );
 
   return {
@@ -229,6 +282,8 @@ export function calculatePricing(input: PricingInput): PricingBreakdown {
     qstAmount,
     taxAmount,
     total,
+    baseCleaningPersonHours,
+    extrasPersonHours,
     estimatedPersonHours,
     reportedOperationalHours,
     recommendedCrewSize: recommendCrewSize(estimatedPersonHours),
