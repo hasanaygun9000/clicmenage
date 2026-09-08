@@ -6,9 +6,9 @@ import { locales, type Locale } from '@/lib/i18n/config';
 import { getDictionary } from '@/lib/i18n/get-dictionary';
 import { buildMetadata } from '@/lib/seo/metadata';
 import { services, getServiceBySlug } from '@/lib/config/services';
-import { extras } from '@/lib/config/extras';
+import { getExtrasForService } from '@/lib/config/extras';
 import { pricingConfig } from '@/lib/pricing/pricing-config';
-import { formatCurrency } from '@/lib/pricing/engine';
+import { getStartingPrice, formatCurrency } from '@/lib/pricing/engine';
 import { routes } from '@/lib/config/routes';
 import { bookingHref } from '@/lib/config/nav';
 import { business } from '@/lib/config/business';
@@ -134,7 +134,7 @@ export default function ServiceDetailPage({ params }: { params: { locale: Locale
               <div className="card p-6">
                 <p className="text-sm font-semibold text-ink">{dict.common.from}</p>
                 <p className="mt-1 text-3xl font-bold text-primary-900">
-                  {formatCurrency(pricingConfig.services[service.pricingKey].basePrice, locale)}
+                  {formatCurrency(getStartingPrice(service.pricingKey), locale)}
                 </p>
                 <p className="mt-1 text-xs text-ink-muted">{dict.common.demoPricingNotice}</p>
                 <CtaButton href={bookingUrl} className="mt-5 w-full">
@@ -145,14 +145,14 @@ export default function ServiceDetailPage({ params }: { params: { locale: Locale
               <div className="card p-6">
                 <h3 className="text-base font-semibold text-ink">{dict.services.extrasTitle}</h3>
                 <ul className="mt-4 space-y-3">
-                  {extras.map((extra) => (
+                  {getExtrasForService(service.pricingKey).map((extra) => (
                     <li key={extra.id} className="flex items-center justify-between gap-3 text-sm">
                       <span className="flex items-center gap-2 text-ink-light">
                         <ResolvedIcon name={extra.icon} className="h-4 w-4 text-primary-700" />
                         {extra.name[locale]}
                       </span>
                       <span className="flex-shrink-0 font-medium text-ink">
-                        +{formatCurrency(pricingConfig.extrasPricing[extra.id] ?? 0, locale)}
+                        +{formatCurrency(pricingConfig.extrasPricing[extra.id]?.price ?? 0, locale)}
                       </span>
                     </li>
                   ))}
