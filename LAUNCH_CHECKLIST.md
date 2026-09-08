@@ -21,12 +21,13 @@ Phone, email, hours, and street address are all **hidden automatically** on the 
 
 ## Pricing
 
-- [ ] Real base prices, per-bedroom/bathroom pricing, and deep-clean/move multipliers (`src/lib/pricing/pricing-config.ts`)
-- [ ] Real extras pricing (fridge, oven, windows, etc.)
+- [ ] Real reference person-hours per home size, and hour adjustments for square footage/floors/pet hair/Move furnishing state (`src/lib/pricing/pricing-config.ts`)
+- [ ] Real internal economic assumptions (`economics`: wage, loaded labour budget per hour, travel reserve, supplies, card-processing reserve, target contribution margin per service) — these drive the price but are never shown to the client
+- [ ] Real extras pricing (oven, fridge, cabinets, windows, laundry, bedsheets, dishwasher, second kitchen, balcony)
 - [ ] Real recurring-frequency discounts
 - [ ] Confirm the $89 minimum booking amount (or change it)
 - [ ] Confirm GST/QST tax rates are current, and set `taxes.enabled` as appropriate
-- [ ] Once real pricing is entered, set `isDemoPricing: false` in the same file — this removes the "demo pricing" notice shown throughout the site. Every price in `pricing-config.ts` is explicitly commented `DEMO / TO BE CONFIRMED BEFORE LAUNCH`.
+- [ ] Once real pricing is entered, set `isDemoPricing: false` in the same file — this removes the "demo pricing" notice shown throughout the site. Every price/hour/economic figure in `pricing-config.ts` is explicitly commented `DEMO / TO BE CONFIRMED BEFORE LAUNCH`.
 
 ## Service areas
 

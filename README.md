@@ -58,7 +58,7 @@ Everything a non-developer would want to change lives in `src/lib/config/` — p
 | I want to change... | Edit this file |
 |---|---|
 | Phone number, email, business hours, social links (all hidden on the live site until filled in — no fake placeholders shown) | `src/lib/config/business.ts` or `.env.local`, see `.env.example` |
-| Prices (base price, per-bedroom, per-bathroom, extras, discounts, taxes) | `src/lib/pricing/pricing-config.ts` |
+| Prices (reference hours per home size, extras, discounts, taxes, internal cost assumptions) | `src/lib/pricing/pricing-config.ts` |
 | Services offered (regular/deep/move-in-out, their descriptions, FAQ) | `src/lib/config/services.ts` |
 | Extras (fridge, oven, windows, etc.) | `src/lib/config/extras.ts` |
 | Cities/areas served, postal code coverage | `src/lib/config/service-areas.ts` |
@@ -74,7 +74,7 @@ Every one of these files has comments at the top explaining what's safe to chang
 
 ### Changing a price
 
-Open `src/lib/pricing/pricing-config.ts`. Every dollar amount shown anywhere on the site — service pages, the booking flow, the review screen — is calculated from the numbers in that one file. Change a number there, save, and it updates everywhere. The current numbers are clearly marked as **demo pricing** (see the `isDemoPricing` flag at the top of the file) — set it to `false` once you've entered your real prices, and the "demo pricing" notice will disappear from the site automatically.
+Open `src/lib/pricing/pricing-config.ts`. The client never sees an hourly rate or a promised duration — every price shown anywhere on the site is a fixed, all-in number computed from that file, via `src/lib/pricing/engine.ts` (see the long comment at the top of `pricing-config.ts` for exactly how). Under the hood, the price comes from an internal **estimated person-hours** figure for the job (reference hours per home size + adjustments for square footage, floors, pet hair, and — for Move-In/Out — how furnished the home is), turned into a price using internal cost assumptions (`economics`: labour budget per hour, travel reserve, supplies, card-processing reserve, target margin) that are never shown to the client. Change any of these numbers, save, and every price on the site updates. The current numbers are clearly marked as **demo pricing** (see the `isDemoPricing` flag at the top of the file) — set it to `false` once you've entered your real numbers, and the "demo pricing" notice will disappear from the site automatically.
 
 ### Adding a new city
 
@@ -92,18 +92,29 @@ The price shown during booking is only ever an estimate for the customer's conve
 
 ### How the booking math was tested
 
-Since the sandboxed environment couldn't install packages, the pricing engine and postal-code validator were executed directly (not through the website UI, but as real code) with the following scenarios, and every result was checked by hand:
+This sandboxed environment still can't install packages (same limitation as before — see the note at the top of this README), so `npm run lint`, `npm run typecheck`, `npm run build`, and the new `npm test` suite could not be executed here. **Please run all four yourself** (`npm install` first) and fix anything that comes up — the code has been carefully reviewed by hand, and every file was checked for stale references to the old pricing model (no leftover `basePrice`, `bathrooms`, `extraIds`, etc. anywhere), but a real compiler/linter/test run is the only way to be fully sure.
 
-- Regular cleaning, 2 bedrooms / 1 bathroom, one-time → correct
-- Deep cleaning, 4 bedrooms / 2 bathrooms, with 2 extras → correct multiplier + extras applied
-- Regular cleaning, 3 bedrooms / 2 bathrooms, weekly (recurring discount) → 20% discount applied correctly
-- Move-in/move-out, studio (0 bedrooms) / 1 bathroom → correct
-- A small booking that falls below the $89 minimum → the minimum floor correctly kicks in
+What *could* be verified directly: the pricing engine (`src/lib/pricing/engine.ts` + `pricing-config.ts`) has zero external dependencies, so it was executed as real code (via `tsx`, bypassing the need for `npm install`) against dozens of scenarios, including all 8 reference home sizes × 3 service tiers from the spec (24 combinations, each landing within one $5 rounding increment of its target price) and the individual rules below — every one checked by hand:
+
+- Studio / 1bed / 2bed·1bath / 2bed·2bath Regular cleaning → each priced correctly and increasing with home size
+- A half bathroom → adds hours (and price) correctly
+- Square footage 1000+ → adds hours per bucket; under 1000 or "unknown" → adds nothing (never blocks the client)
+- 3000+ sq ft → flags `manualReviewRequired` instead of silently promising a final price
+- An extra floor (house/townhouse only) → adds hours; ignored for condos/apartments
+- Heavy pet hair → adds hours; "some" does not (documented as a future tuning point)
+- Weekly / biweekly / every-4-weeks → 15% / 10% / 5% discount applied correctly, on the cleaning price only
+- A Regular booking 3–6 months since the last real cleaning → recommended (not required) to switch to Deep
+- A Regular booking 6+ months / 1+ year since the last cleaning → required to switch to Deep before continuing
+- Move-In/Out empty vs. partly-furnished (×1.15) vs. furnished (×1.30) → priced correctly, higher each time
+- Move-In/Out never offers inside oven/fridge/cabinets as extras (already included in that tier's scope)
+- A flat-priced extra ignores quantity; a per-window/load/bed extra scales linearly with it
+- GST (5%) and QST (9.975%) computed separately and summed correctly
+- A very small booking → the $89 minimum floor correctly kicks in
 - Valid Montreal and Brossard postal codes → correctly matched to the right city
 - An Ottawa postal code → correctly rejected as out of service area
 - Malformed postal codes → correctly rejected
 
-You should still click through the booking flow yourself once you run `npm run dev`, on both desktop and a real phone, before launch.
+A full, runnable version of these checks lives in `src/lib/pricing/__tests__/engine.test.ts` and `src/lib/validation/__tests__/schemas.test.ts` (Vitest — run with `npm test` once you've run `npm install`). Everything that touches React, Next.js, or Zod directly (all the `.tsx` components, and the booking API route) could only be reviewed by hand here, not executed — click through the full booking flow yourself once you run `npm run dev`, on both desktop and a real phone, before launch, paying special attention to booking step 3 (completely rebuilt) and step 5 (extras with quantities).
 
 ## Connecting real services (Stripe, email, database)
 
@@ -120,4 +131,3 @@ This is a standard Next.js app, so it deploys cleanly to [Vercel](https://vercel
 ## Before you launch
 
 See `LAUNCH_CHECKLIST.md` for the full list of what still needs to be filled in (real pricing, contact info, legal review, etc.) before this goes live.
-test
