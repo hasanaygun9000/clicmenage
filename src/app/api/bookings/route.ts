@@ -50,11 +50,16 @@ export async function POST(request: NextRequest) {
 
   const pricing = calculatePricing({
     service: selection.service,
+    housingType: selection.housingType,
     bedrooms: selection.bedrooms,
-    bathrooms: selection.bathrooms,
-    sqft: selection.sqft,
+    fullBathrooms: selection.fullBathrooms,
+    halfBathrooms: selection.halfBathrooms,
+    sqftBucket: selection.sqftBucket,
+    floors: selection.floors,
+    petHair: selection.petHair,
+    furnishingState: selection.furnishingState,
     frequency: selection.frequency,
-    extraIds: selection.extraIds,
+    extras: selection.extras,
   });
 
   const booking: Booking = {
