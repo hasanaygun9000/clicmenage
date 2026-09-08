@@ -1,4 +1,5 @@
-import type { FrequencyKey, ServicePricingKey } from '@/lib/pricing/pricing-config';
+import type { FrequencyKey, ServicePricingKey, HousingType, SqftBucket, LastCleaning, PetHair, FurnishingState } from '@/lib/pricing/pricing-config';
+import type { SelectedExtra } from '@/lib/pricing/engine';
 
 /**
  * Shared booking data model — used by the client-side wizard state, the
@@ -24,11 +25,21 @@ export interface BookingSelection {
   postalCode: string;
   areaSlug: string | null;
   service: ServicePricingKey;
+  housingType: HousingType;
+  /** 0 = studio, 1-5 = exact count, 6 = "6+". */
   bedrooms: number;
-  bathrooms: number;
-  sqft?: number;
+  fullBathrooms: number;
+  halfBathrooms: number;
+  sqftBucket: SqftBucket;
+  /** Only meaningful for house/townhouse — see HOUSING_TYPES_WITH_FLOORS. Omitted otherwise. */
+  floors?: number;
+  /** Drives the Regular ↔ Deep recommendation only — never affects price. */
+  lastCleaning: LastCleaning;
+  petHair: PetHair;
+  /** Move-In/Out only. */
+  furnishingState?: FurnishingState;
   frequency: FrequencyKey;
-  extraIds: string[];
+  extras: SelectedExtra[];
   date: string; // ISO date, e.g. '2026-09-20'
   timeWindowId: string;
 }
