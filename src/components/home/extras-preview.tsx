@@ -28,7 +28,7 @@ export function ExtrasPreview({ locale, dict }: { locale: Locale; dict: Dictiona
                 <p className="text-sm font-semibold text-ink">{extra.name[locale]}</p>
                 <p className="mt-1 text-xs leading-relaxed text-ink-muted">{extra.description[locale]}</p>
                 <p className="mt-2 text-sm font-semibold text-accent-600">
-                  + {formatCurrency(pricingConfig.extrasPricing[extra.id] ?? 0, locale)}
+                  + {formatCurrency(pricingConfig.extrasPricing[extra.id]?.price ?? 0, locale)}
                 </p>
               </div>
             </div>
