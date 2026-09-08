@@ -1,4 +1,13 @@
-import type { FrequencyKey, ServicePricingKey } from '@/lib/pricing/pricing-config';
+import type {
+  FrequencyKey,
+  ServicePricingKey,
+  HousingType,
+  SqftBucket,
+  LastCleaning,
+  PetHair,
+  FurnishingState,
+} from '@/lib/pricing/pricing-config';
+import type { SelectedExtra } from '@/lib/pricing/engine';
 import type { BookingCustomer } from '@/lib/booking/types';
 
 export type AreaCheckStatus = 'idle' | 'checking' | 'in-area' | 'out-of-area' | 'invalid';
@@ -12,11 +21,22 @@ export interface BookingWizardState {
   notifySubmitted: boolean;
 
   service: ServicePricingKey | null;
-  bedrooms: number;
-  bathrooms: number;
-  sqft: string;
+  housingType: HousingType | null;
+  /** 0 = studio, 1-5 = exact count, 6 = "6+". null = not yet answered. */
+  bedrooms: number | null;
+  fullBathrooms: number | null;
+  halfBathrooms: number;
+  sqftBucket: SqftBucket | null;
+  /** Only asked (and only ever applied) for house/townhouse. */
+  floors: number | null;
+  lastCleaning: LastCleaning | null;
+  petHair: PetHair | null;
+  /** Move-In/Out only. */
+  furnishingState: FurnishingState | null;
+  /** Client explicitly confirmed the Deep-recommendation/requirement notice in step 3 (see getDeepRecommendationLevel). */
+  deepRecommendationAcknowledged: boolean;
   frequency: FrequencyKey;
-  extraIds: string[];
+  extras: SelectedExtra[];
   date: string;
   timeWindowId: string;
 
@@ -33,11 +53,18 @@ export const initialBookingState: BookingWizardState = {
   notifySubmitted: false,
 
   service: null,
-  bedrooms: 1,
-  bathrooms: 1,
-  sqft: '',
+  housingType: null,
+  bedrooms: null,
+  fullBathrooms: null,
+  halfBathrooms: 0,
+  sqftBucket: null,
+  floors: null,
+  lastCleaning: null,
+  petHair: null,
+  furnishingState: null,
+  deepRecommendationAcknowledged: false,
   frequency: 'once',
-  extraIds: [],
+  extras: [],
   date: '',
   timeWindowId: '',
 

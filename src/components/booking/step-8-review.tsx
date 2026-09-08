@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { services } from '@/lib/config/services';
-import { extras as extrasCatalog } from '@/lib/config/extras';
+import { getExtraById } from '@/lib/config/extras';
 import { bookingRules } from '@/lib/config/booking-rules';
 import { calculatePricing, formatCurrency } from '@/lib/pricing/engine';
 import { routes } from '@/lib/config/routes';
@@ -33,20 +33,30 @@ function ReviewRow({ label, value, onEdit, editLabel }: { label: string; value: 
 
 export function Step8Review({ state, update, locale, dict, goToStep }: StepProps) {
   const t = dict.booking.step8;
-  if (!state.service) return null;
+  if (!state.service || !state.housingType || state.bedrooms === null || !state.fullBathrooms || !state.sqftBucket || !state.petHair) {
+    return null;
+  }
 
   const pricing = calculatePricing({
     service: state.service,
+    housingType: state.housingType,
     bedrooms: state.bedrooms,
-    bathrooms: state.bathrooms,
-    sqft: state.sqft ? Number(state.sqft) : undefined,
+    fullBathrooms: state.fullBathrooms,
+    halfBathrooms: state.halfBathrooms,
+    sqftBucket: state.sqftBucket,
+    floors: state.floors ?? undefined,
+    petHair: state.petHair,
+    furnishingState: state.furnishingState ?? undefined,
     frequency: state.frequency,
-    extraIds: state.extraIds,
+    extras: state.extras,
   });
 
   const serviceLabel = services.find((s) => s.pricingKey === state.service)?.name[locale] ?? '';
-  const selectedExtras = extrasCatalog.filter((e) => state.extraIds.includes(e.id));
+  const selectedExtras = state.extras
+    .map((e) => ({ selection: e, extra: getExtraById(e.id) }))
+    .filter((x): x is { selection: (typeof state.extras)[number]; extra: NonNullable<ReturnType<typeof getExtraById>> } => Boolean(x.extra));
   const timeWindow = bookingRules.timeWindows.find((w) => w.id === state.timeWindowId);
+  const bedroomsLabel = state.bedrooms === 0 ? dict.booking.step3.studio : String(state.bedrooms);
 
   return (
     <div>
@@ -57,7 +67,7 @@ export function Step8Review({ state, update, locale, dict, goToStep }: StepProps
         <ReviewRow label={t.serviceLabel} value={serviceLabel} onEdit={() => goToStep?.(2)} editLabel={dict.booking.editStep} />
         <ReviewRow
           label={t.homeSizeLabel}
-          value={`${state.bedrooms} ch. · ${state.bathrooms} sdb.${state.sqft ? ` · ${state.sqft} pi²` : ''}`}
+          value={`${bedroomsLabel} ch. · ${state.fullBathrooms} sdb.${state.halfBathrooms ? ` + ${state.halfBathrooms} 1/2 sdb.` : ''}`}
           onEdit={() => goToStep?.(3)}
           editLabel={dict.booking.editStep}
         />
@@ -69,7 +79,11 @@ export function Step8Review({ state, update, locale, dict, goToStep }: StepProps
         />
         <ReviewRow
           label={t.extrasLabel}
-          value={selectedExtras.length ? selectedExtras.map((e) => e.name[locale]).join(', ') : dict.booking.step5.noneSelected}
+          value={
+            selectedExtras.length
+              ? selectedExtras.map(({ selection, extra }) => (selection.quantity > 1 ? `${extra.name[locale]} ×${selection.quantity}` : extra.name[locale])).join(', ')
+              : dict.booking.step5.noneSelected
+          }
           onEdit={() => goToStep?.(5)}
           editLabel={dict.booking.editStep}
         />
@@ -116,6 +130,9 @@ export function Step8Review({ state, update, locale, dict, goToStep }: StepProps
           </div>
         </dl>
         <p className="mt-3 text-xs leading-relaxed text-ink-muted">{t.promoNote}</p>
+        {pricing.manualReviewRequired && (
+          <p className="mt-1 text-xs leading-relaxed text-ink-muted">{dict.booking.step3.manualReviewNotice}</p>
+        )}
         {pricing.isDemoPricing && <p className="mt-1 text-xs leading-relaxed text-ink-muted">{dict.common.demoPricingNotice}</p>}
       </div>
 

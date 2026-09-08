@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { Locale } from '@/lib/i18n/config';
 import type { Dictionary } from '@/lib/i18n/dictionary-type';
-import type { ServicePricingKey } from '@/lib/pricing/pricing-config';
+import { HOUSING_TYPES_WITH_FLOORS, type ServicePricingKey } from '@/lib/pricing/pricing-config';
+import { getDeepRecommendationLevel } from '@/lib/pricing/engine';
 import { isBookableDate } from '@/lib/config/booking-rules';
 import { trackEvent } from '@/lib/analytics/events';
 import { Container } from '@/components/ui/container';
@@ -32,8 +33,24 @@ function isValidStep(step: number, state: BookingWizardState): boolean {
       return state.areaCheckStatus === 'in-area';
     case 2:
       return Boolean(state.service);
-    case 3:
-      return state.bedrooms >= 0 && state.bathrooms >= 1;
+    case 3: {
+      if (
+        !state.housingType ||
+        state.bedrooms === null ||
+        !state.fullBathrooms ||
+        !state.sqftBucket ||
+        !state.lastCleaning ||
+        !state.petHair
+      ) {
+        return false;
+      }
+      if (HOUSING_TYPES_WITH_FLOORS.includes(state.housingType) && !state.floors) return false;
+      if (state.service === 'move' && !state.furnishingState) return false;
+      // A first-time Regular booking after a long gap must switch to Deep
+      // before continuing — the step-3 banner offers that switch inline.
+      if (state.service === 'regular' && getDeepRecommendationLevel(state.lastCleaning) === 'required') return false;
+      return true;
+    }
     case 4:
       return Boolean(state.frequency);
     case 5:

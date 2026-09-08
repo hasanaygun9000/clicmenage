@@ -1,8 +1,7 @@
 'use client';
 
 import { services } from '@/lib/config/services';
-import { pricingConfig } from '@/lib/pricing/pricing-config';
-import { formatCurrency } from '@/lib/pricing/engine';
+import { getStartingPrice, formatCurrency } from '@/lib/pricing/engine';
 import { ResolvedIcon } from '@/components/ui/icon-map';
 import { cn } from '@/lib/utils';
 import { trackEvent } from '@/lib/analytics/events';
@@ -45,7 +44,7 @@ export function Step2Service({ state, update, locale, dict }: StepProps) {
               <p className="mt-4 font-semibold text-ink">{service.name[locale]}</p>
               <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{service.shortDescription[locale]}</p>
               <p className="mt-3 text-sm font-semibold text-primary-800">
-                {dict.common.from} {formatCurrency(pricingConfig.services[service.pricingKey].basePrice, locale)}
+                {dict.common.from} {formatCurrency(getStartingPrice(service.pricingKey), locale)}
               </p>
             </button>
           );

@@ -40,16 +40,31 @@ export function SummarySidebar({
     );
   }
 
+  if (state.bedrooms === null || !state.housingType || !state.fullBathrooms || !state.sqftBucket || !state.petHair) {
+    return (
+      <div className="card p-6">
+        <h3 className="text-sm font-semibold text-ink">{dict.booking.summaryTitle}</h3>
+        <p className="mt-3 text-sm leading-relaxed text-ink-muted">{dict.booking.step3.subtitle}</p>
+      </div>
+    );
+  }
+
   const pricing = calculatePricing({
     service: state.service,
+    housingType: state.housingType,
     bedrooms: state.bedrooms,
-    bathrooms: state.bathrooms,
-    sqft: state.sqft ? Number(state.sqft) : undefined,
+    fullBathrooms: state.fullBathrooms,
+    halfBathrooms: state.halfBathrooms,
+    sqftBucket: state.sqftBucket,
+    floors: state.floors ?? undefined,
+    petHair: state.petHair,
+    furnishingState: state.furnishingState ?? undefined,
     frequency: state.frequency,
-    extraIds: state.extraIds,
+    extras: state.extras,
   });
 
   const serviceLabel = services.find((s) => s.pricingKey === state.service)?.name[locale] ?? '';
+  const bedroomsLabel = state.bedrooms === 0 ? dict.booking.step3.studio : String(state.bedrooms);
 
   return (
     <div className="card sticky top-24 p-6">
@@ -63,14 +78,14 @@ export function SummarySidebar({
         <div className="flex justify-between gap-3">
           <dt className="text-ink-muted">{dict.booking.step8.homeSizeLabel}</dt>
           <dd className="text-right font-medium text-ink">
-            {state.bedrooms} ch. · {state.bathrooms} sdb.
+            {bedroomsLabel} ch. · {state.fullBathrooms} sdb.
           </dd>
         </div>
-        {state.extraIds.length > 0 && (
+        {state.extras.length > 0 && (
           <div className="flex justify-between gap-3">
             <dt className="text-ink-muted">{dict.booking.step8.extrasLabel}</dt>
             <dd className="text-right font-medium text-ink">
-              {state.extraIds.length} {locale === 'fr' ? 'extra(s)' : 'extra(s)'}
+              {state.extras.length} {locale === 'fr' ? 'extra(s)' : 'extra(s)'}
             </dd>
           </div>
         )}
