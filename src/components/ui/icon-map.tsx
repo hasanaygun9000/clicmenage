@@ -8,6 +8,10 @@ import {
   Archive,
   Shirt,
   Sofa,
+  BedDouble,
+  Droplets,
+  ChefHat,
+  Sun,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -26,6 +30,10 @@ export const iconMap: Record<string, LucideIcon> = {
   Archive,
   Shirt,
   Sofa,
+  BedDouble,
+  Droplets,
+  ChefHat,
+  Sun,
 };
 
 export function ResolvedIcon({ name, className }: { name: string; className?: string }) {
