@@ -122,7 +122,63 @@ None of these are required for the site to work — they all run in a safe "demo
 
 - **Payments (Stripe)**: `src/lib/payments/stripe.ts`. Add your Stripe keys to `.env.local` and follow the comment at the top of the file.
 - **Transactional emails**: `src/lib/email/provider.ts`. Currently logs what it would send. Pick a provider (Resend or Postmark both have generous free tiers), add the API key, and follow the comment at the top of the file.
-- **Database (bookings storage)**: `src/lib/db/bookings.ts`. Currently stores bookings in memory (they reset when the server restarts) — fine for demoing, not for production. Supabase is recommended (free tier, hosted Postgres) — the file explains exactly what to do.
+- **Database (bookings storage)**: `src/lib/db/repositories/` (start at `bookings.ts` and `customers.ts`). Without Supabase configured, bookings are stored in memory (they reset when the server restarts) — fine for demoing, not for production. Follow "Supabase Setup" below to switch to a real, persistent database — nothing else about the site changes.
+
+## Supabase Setup
+
+This section is written for Hasan, not a developer — every step is something you click or paste, in order. Do this whenever you're ready to make bookings persist for real instead of resetting every time the server restarts. **Skip it entirely and the site keeps working exactly as it does today** (in "demo mode") — this is optional until you're ready for real bookings.
+
+**⚠️ Rule for the whole section: never send Claude, ChatGPT, or anyone else the "service role" key or any value described as secret below, and never paste it into GitHub.** It grants full access to your database.
+
+### 1. Create your Supabase project
+
+1. Go to [supabase.com](https://supabase.com) and sign up (free tier is enough to start).
+2. Click **New Project**.
+3. Pick an organization (create one if it's your first project), give the project a name like `clicmenage`, and set a database password — Supabase generates a strong one for you; just click the button to copy it somewhere safe (a password manager). You won't need to type this password day-to-day.
+4. Pick a region close to Quebec (e.g. `ca-central-1` / Canada Central, if offered — otherwise US East is fine).
+5. Click **Create new project** and wait a minute or two while it sets up.
+
+### 2. Run the two migration files
+
+1. In your new project, click **SQL Editor** in the left sidebar, then **New query**.
+2. Open the file `supabase/migrations/0001_init_schema.sql` from this project folder in Notepad (or any text editor), select all the text (Ctrl+A), copy it (Ctrl+C).
+3. Paste it into the Supabase SQL editor and click **Run** (bottom right). You should see "Success. No rows returned."
+4. Click **New query** again.
+5. Open `supabase/migrations/0002_row_level_security.sql`, copy all of it, paste it into the new query, and click **Run** again.
+6. In the left sidebar, click **Table Editor** — you should now see 7 tables: `customers`, `bookings`, `booking_extras`, `booking_status_history`, `cleaners`, `job_assignments`, `job_time_logs`.
+
+### 3. Copy your project's URL and keys
+
+1. Click the **Settings** gear icon in the left sidebar, then **API**.
+2. You'll see a field called **Project URL** — it looks like `https://xxxxxxxxxxxx.supabase.co`. Copy it.
+3. Further down, under **Project API keys**, you'll see a key labeled **anon / public** (safe to share) and one labeled **service_role** (marked secret — click "Reveal" to see it). Copy the **service_role** one. Remember: never paste this one into a chat with Claude/ChatGPT or into GitHub.
+
+### 4. Add them to your local project
+
+1. In the `clicmenage` folder on your computer, look for a file named `.env.local`. If it doesn't exist, make a copy of `.env.example` and rename the copy to `.env.local`.
+2. Open `.env.local` in Notepad and find these two lines near the bottom:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=
+   SUPABASE_SERVICE_ROLE_KEY=
+   ```
+3. Paste your Project URL after the first `=`, and your service_role key after the second `=`. No quotes needed. Save the file.
+4. In your terminal, in the `clicmenage` folder, run `npm install` once (this installs the Supabase package), then `npm run dev` to test locally.
+
+### 5. Verify the connection works
+
+1. With `npm run dev` running, open the site locally and go through a booking (any test info is fine).
+2. Back in Supabase, click **Table Editor** → **bookings** — you should see your test booking appear as a new row, with `status` set to `awaiting_payment` (or `pending_review` for a very large home). If you see the row, the connection works.
+3. Click **customers** — you should see one row for your test customer.
+
+### 6. Add the same variables to Vercel (for the live site)
+
+1. Go to your project on [vercel.com](https://vercel.com), click **Settings** → **Environment Variables**.
+2. Add `NEXT_PUBLIC_SUPABASE_URL` with the same Project URL value.
+3. Add `SUPABASE_SERVICE_ROLE_KEY` with the same service_role key value. Again — never share this value outside of this one field.
+4. Click **Save**, then go to the **Deployments** tab and redeploy the latest deployment (or just push a new commit) so the live site picks up the new variables.
+5. Repeat step 5 above against the live URL to confirm bookings are landing in the same Supabase tables.
+
+That's it — once these variables are set (locally and in Vercel), every booking is saved for real, automatically, with no other code changes needed.
 
 ## Deploying
 

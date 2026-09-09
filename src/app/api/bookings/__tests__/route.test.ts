@@ -2,7 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST } from '../route';
 import * as stripeModule from '@/lib/payments/stripe';
-import { getBookingByConfirmationNumber } from '@/lib/db/bookings';
+import { getBookingByConfirmationNumber } from '@/lib/db/repositories/bookings';
+import { isSupabaseConfigured } from '@/lib/db/client';
 
 /**
  * ============================================================================
@@ -25,6 +26,7 @@ function bookableDateIso(): string {
 
 function validPayload(selectionOverrides: Record<string, unknown> = {}) {
   return {
+    locale: 'fr',
     selection: {
       postalCode: 'H2X 1Y6',
       areaSlug: 'montreal',
@@ -67,13 +69,19 @@ afterEach(() => {
 });
 
 describe('POST /api/bookings — normal (no manual review) path', () => {
-  it('18. recomputes price server-side and returns a confirmed, paid booking with a PaymentIntent', async () => {
+  it('18. recomputes price server-side and returns an awaiting_payment booking with a PaymentIntent', async () => {
+    // Phase 2 — real Stripe isn't connected yet, so a normal booking is
+    // persisted as `awaiting_payment`, never `confirmed` (see
+    // BOOKING_STATUSES in src/lib/booking/status.ts and the "BOOKING
+    // STATUSES" requirement of the Phase 2 spec). `confirmed` is reserved
+    // for once a real payment actually succeeds in a future phase.
     const createPaymentIntentSpy = vi.spyOn(stripeModule, 'createPaymentIntent');
     const response = await POST(makeRequest(validPayload()));
     const data = await response.json();
 
     expect(response.status).toBe(201);
-    expect(data.booking.status).toBe('confirmed');
+    expect(data.booking.status).toBe('awaiting_payment');
+    expect(data.booking.status).not.toBe('confirmed');
     expect(data.booking.pricing.total).toBeGreaterThan(0);
     expect(data.payment.provider).toBe('mock');
     expect(createPaymentIntentSpy).toHaveBeenCalledTimes(1);
@@ -143,5 +151,81 @@ describe('POST /api/bookings — V1.1 manual review gate', () => {
     const data = await response.json();
     expect(data.payment).toBeUndefined();
     expect(data.email).toBeUndefined();
+  });
+});
+
+describe('POST /api/bookings — Phase 2: server-side data integrity', () => {
+  it('a price sent by the browser is ignored — the response total matches an unmodified request', async () => {
+    const withBogusPrice = makeRequest({
+      ...validPayload(),
+      selection: { ...validPayload().selection, total: 1, price: 1, totalPrice: 1 },
+    });
+    const clean = await (await POST(makeRequest(validPayload()))).json();
+    const tampered = await (await POST(withBogusPrice)).json();
+    expect(tampered.booking.pricing.total).toBe(clean.booking.pricing.total);
+    expect(tampered.booking.pricing.total).not.toBe(1);
+  });
+
+  it('taxes sent by the browser are ignored — gst/qst always come from the server recomputation', async () => {
+    const withBogusTax = makeRequest({
+      ...validPayload(),
+      selection: { ...validPayload().selection, taxAmount: 0, gstAmount: 0, qstAmount: 0 },
+    });
+    const response = await POST(withBogusTax);
+    const data = await response.json();
+    expect(data.booking.pricing.taxAmount).toBeGreaterThan(0);
+  });
+
+  it('person-hours sent by the browser are ignored — the stored snapshot always comes from calculatePricing()', async () => {
+    const withBogusHours = makeRequest({
+      ...validPayload(),
+      selection: { ...validPayload().selection, estimatedPersonHours: 999, baseCleaningPersonHours: 999 },
+    });
+    const response = await POST(withBogusHours);
+    const data = await response.json();
+    const stored = await getBookingByConfirmationNumber(data.booking.confirmationNumber);
+    expect(stored?.pricingSnapshot?.estimatedPersonHours).toBeLessThan(999);
+  });
+
+  it('persists an immutable pricing snapshot (pricing_version + hours + crew size) alongside the customer-facing total', async () => {
+    const response = await POST(makeRequest(validPayload()));
+    const data = await response.json();
+    const stored = await getBookingByConfirmationNumber(data.booking.confirmationNumber);
+    expect(stored?.pricingSnapshot).toBeDefined();
+    expect(stored?.pricingSnapshot?.pricingVersion).toBe('v1.1');
+    expect(stored?.pricingSnapshot?.estimatedPersonHours).toBeGreaterThan(0);
+    expect(stored?.pricingSnapshot?.recommendedCrewSize).toBeGreaterThanOrEqual(1);
+  });
+
+  it('persists a snapshot row per selected extra, with unit price and hours matching the pricing config', async () => {
+    const response = await POST(
+      makeRequest(validPayload({ extras: [{ id: 'inside-oven', quantity: 1 }, { id: 'interior-windows', quantity: 3 }] }))
+    );
+    const data = await response.json();
+    const stored = await getBookingByConfirmationNumber(data.booking.confirmationNumber);
+    expect(stored?.extras).toHaveLength(2);
+    const oven = stored?.extras?.find((e) => e.extraId === 'inside-oven');
+    expect(oven?.unitPriceSnapshot).toBe(40);
+    expect(oven?.totalPriceSnapshot).toBe(40);
+    const windows = stored?.extras?.find((e) => e.extraId === 'interior-windows');
+    expect(windows?.quantity).toBe(3);
+    expect(windows?.totalPriceSnapshot).toBe(30); // 3 windows x $10
+  });
+
+  it('the same customer email booking twice is stored under a single customer id (dedup)', async () => {
+    const first = await (await POST(makeRequest(validPayload()))).json();
+    const second = await (
+      await POST(makeRequest(validPayload({ bedrooms: 3 })))
+    ).json();
+    const firstStored = await getBookingByConfirmationNumber(first.booking.confirmationNumber);
+    const secondStored = await getBookingByConfirmationNumber(second.booking.confirmationNumber);
+    expect(firstStored?.customerId).toBeDefined();
+    expect(firstStored?.customerId).toBe(secondStored?.customerId);
+  });
+
+  it('runs entirely in demo mode without any Supabase environment variables configured', async () => {
+    expect(isSupabaseConfigured()).toBe(false);
+    const response = await POST(makeRequest(validPayload()));
+    expect(response.status).toBe(201);
   });
 });

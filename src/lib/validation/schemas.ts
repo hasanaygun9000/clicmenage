@@ -89,6 +89,10 @@ export const bookingSelectionSchema = z
   });
 
 export const createBookingSchema = z.object({
+  // Phase 2 — needed so the booking row can record which language the
+  // customer booked in (bookings.locale). Purely descriptive metadata, not
+  // a pricing input — never affects calculatePricing().
+  locale: z.enum(['fr', 'en']).default('fr'),
   selection: bookingSelectionSchema,
   customer: bookingCustomerSchema,
 });

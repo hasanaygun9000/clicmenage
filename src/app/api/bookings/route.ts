@@ -5,10 +5,10 @@ import { isBookableDate } from '@/lib/config/booking-rules';
 import { calculatePricing } from '@/lib/pricing/engine';
 import { createPaymentIntent } from '@/lib/payments/stripe';
 import { sendEmail } from '@/lib/email/provider';
-import { createBookingRecord } from '@/lib/db/bookings';
+import { findOrCreateCustomer } from '@/lib/db/repositories/customers';
+import { createBooking } from '@/lib/db/repositories/bookings';
 import { generateConfirmationNumber } from '@/lib/utils';
 import { business } from '@/lib/config/business';
-import type { Booking } from '@/lib/booking/types';
 
 /**
  * ============================================================================
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'validation_failed', issues: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { selection, customer } = parsed.data;
+  const { locale, selection, customer } = parsed.data;
 
   // Re-derive the service area from the postal code server-side — never
   // trust a client-supplied areaSlug.
@@ -53,6 +53,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'invalid_appointment_date' }, { status: 422 });
   }
 
+  // SECURITY: calculatePricing() only ever reads the validated `selection`
+  // object above — any extra field a client might have sent (a price, a
+  // tax amount, an hours figure) was never part of that schema and Zod has
+  // already stripped it. There is no code path anywhere below that reads a
+  // client-sent price/tax/hours value.
   const pricing = calculatePricing({
     service: selection.service,
     housingType: selection.housingType,
@@ -67,19 +72,12 @@ export async function POST(request: NextRequest) {
     extras: selection.extras,
   });
 
-  const bookingBase = {
-    id: `bk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    confirmationNumber: generateConfirmationNumber(),
-    createdAt: new Date().toISOString(),
-    selection: { ...selection, areaSlug: matchedArea.slug },
-    customer,
-    pricing: {
-      subtotal: pricing.subtotal,
-      taxAmount: pricing.taxAmount,
-      total: pricing.total,
-      currency: pricing.currency,
-    },
-  };
+  // Phase 2 — find-or-create the customer (deduped by email) before the
+  // booking row is written, so bookings.customer_id always points at a
+  // real, single row for that person. See src/lib/db/repositories/customers.ts.
+  const customerRecord = await findOrCreateCustomer(customer);
+
+  const confirmationNumber = generateConfirmationNumber();
 
   // ============================================================================
   // V1.1 — MANUAL REVIEW GATE
@@ -88,18 +86,24 @@ export async function POST(request: NextRequest) {
   // bucket answers in step 3 — 6+ bedrooms, 4+ full bathrooms, 3+ half
   // bathrooms, 3+ floors) never reaches payment or a "confirmed" status
   // here. This is enforced server-side, not just hidden in the UI: no
-  // PaymentIntent is created and no money moves. The booking is stored as
-  // a minimal `pending_review` record (existing in-memory store — no new
-  // persistence layer) so it isn't lost, and the API tells the client
-  // plainly that this is a verification request, not a confirmed booking.
+  // PaymentIntent is created and no money moves. The booking is persisted
+  // (Phase 2: real Supabase row when configured, demo store otherwise —
+  // see src/lib/db/repositories/bookings.ts) as `pending_review` so it
+  // isn't lost, with its full pricing snapshot stored internally but never
+  // charged, and the API tells the client plainly that this is a
+  // verification request, not a confirmed booking.
   // ============================================================================
   if (pricing.manualReviewRequired) {
-    const reviewBooking: Booking = {
-      ...bookingBase,
+    const reviewBooking = await createBooking({
+      confirmationNumber,
+      locale,
+      customerId: customerRecord.id,
+      customer,
+      selection: { ...selection, areaSlug: matchedArea.slug },
+      pricing,
       status: 'pending_review',
       paymentStatus: 'unpaid',
-    };
-    await createBookingRecord(reviewBooking);
+    });
 
     return NextResponse.json(
       {
@@ -112,22 +116,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const booking: Booking = {
-    ...bookingBase,
-    status: 'confirmed',
-    paymentStatus: 'unpaid',
-  };
-
+  // Phase 2 — real Stripe is NOT connected yet (out of scope for this
+  // phase). createPaymentIntent() below is still the same mock stand-in as
+  // before (see src/lib/payments/stripe.ts); what changes here is that a
+  // normal booking is now persisted as `awaiting_payment`, never
+  // `confirmed` — `confirmed` is reserved for once a real payment actually
+  // succeeds in a future phase. See BOOKING_STATUSES in
+  // src/lib/booking/status.ts.
   const paymentIntent = await createPaymentIntent({
     amount: Math.round(pricing.total * 100),
     currency: pricing.currency,
-    bookingId: booking.id,
+    bookingId: confirmationNumber,
     customerEmail: customer.email,
   });
 
-  booking.paymentStatus = paymentIntent.status === 'succeeded' || paymentIntent.status === 'mock_succeeded' ? 'paid' : 'authorized';
+  const paymentStatus =
+    paymentIntent.status === 'succeeded' || paymentIntent.status === 'mock_succeeded' ? 'paid' : 'authorized';
 
-  await createBookingRecord(booking);
+  const booking = await createBooking({
+    confirmationNumber,
+    locale,
+    customerId: customerRecord.id,
+    customer,
+    selection: { ...selection, areaSlug: matchedArea.slug },
+    pricing,
+    status: 'awaiting_payment',
+    paymentStatus,
+  });
 
   const [confirmationEmailResult] = await Promise.all([
     sendEmail({

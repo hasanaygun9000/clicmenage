@@ -48,6 +48,7 @@ export function Step9Payment({ state, locale, dict }: StepProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          locale,
           selection: {
             postalCode: state.postalCode,
             areaSlug: state.areaSlug,
