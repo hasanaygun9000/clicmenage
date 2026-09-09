@@ -5,10 +5,10 @@ import path from 'node:path';
 /**
  * Phase 2 backend foundation — requirement 14 (security). These are static
  * checks over the source tree, not runtime checks: they make sure nothing
- * that touches the Supabase service-role key, or a cleaner's hourly wage,
+ * that touches the Supabase secret key, or a cleaner's hourly wage,
  * ever ends up textually referenced from a 'use client' component. Cheap
  * to run on every `npm test`, and catches the exact class of mistake the
- * spec is worried about (a service-role key ending up in the browser
+ * spec is worried about (a secret key ending up in the browser
  * bundle) before it ever ships.
  */
 
@@ -43,8 +43,8 @@ describe('security — service-role key / wage never reach client components', (
     expect(clientFiles.length).toBeGreaterThan(0);
   });
 
-  it('no "use client" component references SUPABASE_SERVICE_ROLE_KEY', () => {
-    const offenders = clientFiles.filter((f) => readFileSync(f, 'utf8').includes('SUPABASE_SERVICE_ROLE_KEY'));
+  it('no "use client" component references SUPABASE_SECRET_KEY', () => {
+    const offenders = clientFiles.filter((f) => readFileSync(f, 'utf8').includes('SUPABASE_SECRET_KEY'));
     expect(offenders).toEqual([]);
   });
 

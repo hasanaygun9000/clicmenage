@@ -149,19 +149,19 @@ This section is written for Hasan, not a developer — every step is something y
 
 ### 3. Copy your project's URL and keys
 
-1. Click the **Settings** gear icon in the left sidebar, then **API**.
-2. You'll see a field called **Project URL** — it looks like `https://xxxxxxxxxxxx.supabase.co`. Copy it.
-3. Further down, under **Project API keys**, you'll see a key labeled **anon / public** (safe to share) and one labeled **service_role** (marked secret — click "Reveal" to see it). Copy the **service_role** one. Remember: never paste this one into a chat with Claude/ChatGPT or into GitHub.
+1. Click the **Settings** gear icon in the left sidebar, then **API keys** (this is Supabase's current dashboard — the modern replacement for the old "anon / service_role" screen).
+2. Under **Project URL** you'll see something like `https://xxxxxxxxxxxx.supabase.co`. Copy it.
+3. Under **API keys**, Supabase now offers two modern keys: **publishable** (safe to share) and **secret** (starts with `sb_secret_...`, click "Reveal" to see it). Copy the **secret** one. ClicMénage doesn't need the publishable key — we don't need it. Remember: never paste the secret key into a chat with Claude/ChatGPT or into GitHub.
 
 ### 4. Add them to your local project
 
 1. In the `clicmenage` folder on your computer, look for a file named `.env.local`. If it doesn't exist, make a copy of `.env.example` and rename the copy to `.env.local`.
 2. Open `.env.local` in Notepad and find these two lines near the bottom:
    ```
-   NEXT_PUBLIC_SUPABASE_URL=
-   SUPABASE_SERVICE_ROLE_KEY=
+   SUPABASE_URL=
+   SUPABASE_SECRET_KEY=
    ```
-3. Paste your Project URL after the first `=`, and your service_role key after the second `=`. No quotes needed. Save the file.
+3. Paste your Project URL after the first `=`, and your secret key after the second `=`. No quotes needed. Save the file.
 4. In your terminal, in the `clicmenage` folder, run `npm install` once (this installs the Supabase package), then `npm run dev` to test locally.
 
 ### 5. Verify the connection works
@@ -173,8 +173,8 @@ This section is written for Hasan, not a developer — every step is something y
 ### 6. Add the same variables to Vercel (for the live site)
 
 1. Go to your project on [vercel.com](https://vercel.com), click **Settings** → **Environment Variables**.
-2. Add `NEXT_PUBLIC_SUPABASE_URL` with the same Project URL value.
-3. Add `SUPABASE_SERVICE_ROLE_KEY` with the same service_role key value. Again — never share this value outside of this one field.
+2. Add `SUPABASE_URL` with the same Project URL value.
+3. Add `SUPABASE_SECRET_KEY` with the same secret key value. Again — never share this value outside of this one field.
 4. Click **Save**, then go to the **Deployments** tab and redeploy the latest deployment (or just push a new commit) so the live site picks up the new variables.
 5. Repeat step 5 above against the live URL to confirm bookings are landing in the same Supabase tables.
 
